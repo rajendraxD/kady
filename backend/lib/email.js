@@ -1,4 +1,5 @@
-const nodemailer = require('nodemailer')
+import nodemailer from 'nodemailer'
+import { smtp as smtpConfig } from '../config/env.js'
 
 let transporter = null
 
@@ -8,17 +9,12 @@ let transporter = null
 function getTransporter() {
   if (transporter) return transporter
 
-  const host = process.env.SMTP_HOST
-  const port = parseInt(process.env.SMTP_PORT || '587', 10)
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASS
-
-  if (host && user && pass) {
+  if (smtpConfig.host && smtpConfig.user && smtpConfig.pass) {
     transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass }
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: { user: smtpConfig.user, pass: smtpConfig.pass }
     })
   } else {
     // Create a fake transporter that just logs (for dev without SMTP config)
@@ -55,7 +51,7 @@ function extractOtpFromHtml(html) {
  */
 async function sendOtpEmail(to, otp) {
   try {
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@kady.local'
+    const from = smtpConfig.from
     const transport = getTransporter()
 
     await transport.sendMail({
@@ -105,4 +101,4 @@ async function sendOtpEmail(to, otp) {
   }
 }
 
-module.exports = { sendOtpEmail }
+export { sendOtpEmail }

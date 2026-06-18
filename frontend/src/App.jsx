@@ -47,7 +47,15 @@ export default function App() {
         </div>
         <button
           className="admin-login-btn"
-          onClick={() => setView(view === 'adminDashboard' ? 'apply' : 'admin')}
+          onClick={() => {
+            if (view === 'adminDashboard') {
+              localStorage.removeItem('kady_admin_token')
+              localStorage.removeItem('kady_admin_user')
+              setView('apply')
+            } else {
+              setView(view === 'admin' ? 'apply' : 'admin')
+            }
+          }}
         >
           {view === 'adminDashboard' ? 'Logout' : 'Admin Login'}
         </button>

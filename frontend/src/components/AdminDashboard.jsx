@@ -1172,6 +1172,24 @@ export default function AdminDashboard({ onLogout }) {
             )}
           </button>
           <TimezoneWidget />
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={async () => {
+              try {
+                await api.post('/auth/logout')
+              } catch (_err) {
+                // best-effort: clear locally regardless
+              }
+              localStorage.removeItem('kady_admin_token')
+              localStorage.removeItem('kady_admin_user')
+              onLogout?.()
+            }}
+            title="Logout"
+          >
+            <span>Logout</span>
+            <span className="logout-icon">→</span>
+          </button>
         </div>
       </div>
 

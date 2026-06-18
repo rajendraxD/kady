@@ -1,11 +1,11 @@
-const express = require('express')
-const Application = require('../models/Application')
-const { verifyToken } = require('../middleware/auth')
+import express from 'express'
+import Application from '../models/Application.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // GET /api/applications — list all applications (auth required)
-router.get('/', verifyToken, async (_req, res) => {
+router.get('/', requireAuth, async (_req, res) => {
   try {
     const applications = await Application.find().sort({ createdAt: -1 })
     res.json(applications)
@@ -74,7 +74,7 @@ router.post('/', async (req, res) => {
 })
 
 // PATCH /api/applications/:id/status — update application status (auth required)
-router.patch('/:id/status', verifyToken, async (req, res) => {
+router.patch('/:id/status', requireAuth, async (req, res) => {
   try {
     const { id } = req.params
     const { status } = req.body
@@ -101,4 +101,4 @@ router.patch('/:id/status', verifyToken, async (req, res) => {
   }
 })
 
-module.exports = router
+export default router

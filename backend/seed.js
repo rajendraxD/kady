@@ -1,8 +1,6 @@
-require('dotenv').config()
-const mongoose = require('mongoose')
-const User = require('./models/User')
-
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/kady-hiring-portal'
+import mongoose from 'mongoose'
+import { mongoUri as MONGO_URI } from './config/env.js'
+import User from './models/User.js'
 
 async function seed() {
   try {

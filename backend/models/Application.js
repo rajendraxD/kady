@@ -1,4 +1,4 @@
-const mongoose = require('mongoose')
+import mongoose from 'mongoose'
 
 const bonusEntrySchema = new mongoose.Schema({
   type: { type: String, default: '' },
@@ -83,4 +83,4 @@ applicationSchema.set('toJSON', {
   }
 })
 
-module.exports = mongoose.model('Application', applicationSchema)
+export default mongoose.model('Application', applicationSchema)
