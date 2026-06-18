@@ -1,0 +1,22 @@
+{
+  "name": "kady",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "concurrently \"cd backend && npm run seed && npm run dev\" \"cd frontend && npm run dev\"",
+    "build": "concurrently \"cd frontend && npm run build\"",
+    "dev": "concurrently \"cd backend && npm run seed && npm run dev\" \"cd frontend && npm run dev\"",
+    "clean": "rimraf node_modules frontend/node_modules backend/node_modules",
+    "install": "concurrently \"npm install\" \"cd frontend && npm install\" \"cd backend && npm install\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "rimraf": "^6.1.3"
+  }
+}
