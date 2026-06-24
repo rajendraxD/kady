@@ -1,25 +1,86 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  IconButton,
+  Chip,
+  Stack,
+  Grid,
+  Card,
+  CardContent,
+  TextField,
+  MenuItem,
+  Select,
+  FormControl,
+  Collapse,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  ToggleButton,
+  ToggleButtonGroup,
+  Dialog,
+  DialogContent,
+  Avatar,
+  Divider,
+  Badge,
+  Fab,
+  Link as MuiLink,
+  Tooltip
+} from '@mui/material'
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
+import FilterListRoundedIcon from '@mui/icons-material/FilterListRounded'
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
+import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded'
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
+import ChatBubbleRoundedIcon from '@mui/icons-material/ChatBubbleRounded'
+import SendRoundedIcon from '@mui/icons-material/SendRounded'
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded'
+import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded'
+import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded'
 import TimezoneWidget from './TimezoneWidget'
-import api from '../api'
+import { fetchApplications, changeStatus, deleteApplication } from '../store/applicationsSlice'
+import { logout } from '../store/authSlice'
 
 const VIEW_MODES = [
-  { value: 'card', label: 'Card View' },
-  { value: 'table', label: 'Table View' },
-  { value: 'list', label: 'List View' },
-  { value: 'titles', label: 'Titles View' }
+  { value: 'card', label: 'Card' },
+  { value: 'table', label: 'Table' },
+  { value: 'list', label: 'List' },
+  { value: 'titles', label: 'Titles' }
 ]
 
+const STATUS_OPTIONS = [
+  'Applied',
+  'Under Review',
+  'Shortlisted',
+  'Interview Scheduled',
+  'Selected',
+  'Rejected',
+  'On Hold'
+]
+
+const STATUS_COLOR = {
+  Applied: 'default',
+  'Under Review': 'info',
+  Shortlisted: 'primary',
+  'Interview Scheduled': 'secondary',
+  Selected: 'success',
+  Rejected: 'error',
+  'On Hold': 'warning'
+}
+
+const statusColor = status => STATUS_COLOR[status] || 'default'
+
 export default function AdminDashboard({ onLogout }) {
-  const [applications, setApplications] = useState([])
-  const STATUS_OPTIONS = [
-    'Applied',
-    'Under Review',
-    'Shortlisted',
-    'Interview Scheduled',
-    'Selected',
-    'Rejected',
-    'On Hold'
-  ]
+  const dispatch = useDispatch()
+  const applications = useSelector(state => state.applications.items)
+
   const [viewMode, setViewMode] = useState('card')
   const [filterText, setFilterText] = useState('')
   const [filterField, setFilterField] = useState('all')
@@ -78,71 +139,34 @@ export default function AdminDashboard({ onLogout }) {
   ])
   const [activeCandidate, setActiveCandidate] = useState(null)
   const [fullInfoOpen, setFullInfoOpen] = useState(false)
-  const [fullInfoClosing, setFullInfoClosing] = useState(false)
-  const closeTimeoutRef = useRef(null)
 
   const formatTimestamp = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape' && fullInfoOpen && !fullInfoClosing) {
-        closeFullInfo()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [fullInfoOpen, fullInfoClosing])
+    dispatch(fetchApplications())
+  }, [dispatch])
 
-  useEffect(() => {
-    return () => {
-      if (closeTimeoutRef.current) {
-        window.clearTimeout(closeTimeoutRef.current)
-      }
-    }
-  }, [])
+  const openFullInfo = application => {
+    setActiveCandidate(application)
+    setFullInfoOpen(true)
+  }
 
   const closeFullInfo = () => {
-    if (!fullInfoOpen || fullInfoClosing) return
-    setFullInfoClosing(true)
-    if (closeTimeoutRef.current) {
-      window.clearTimeout(closeTimeoutRef.current)
-    }
-    closeTimeoutRef.current = window.setTimeout(() => {
-      setFullInfoOpen(false)
-      setFullInfoClosing(false)
-      setActiveCandidate(null)
-      closeTimeoutRef.current = null
-    }, 220)
+    setFullInfoOpen(false)
+    setActiveCandidate(null)
   }
 
-  const handleFullInfoOverlayClick = (event) => {
-    if (event.target === event.currentTarget) {
-      closeFullInfo()
-    }
-  }
+  const normalizeText = value => (value || '').toLowerCase()
 
-  const handleFullInfoCloseClick = (event) => {
-    event.stopPropagation()
-    closeFullInfo()
-  }
-
-  const normalizeText = (value) => (value || '').toLowerCase()
-
-  const parseNumber = (value) => {
-    const parsed = Number(String(value).replace(/[^0-9\.]/g, ''))
+  const parseNumber = value => {
+    const parsed = Number(String(value).replace(/[^0-9.]/g, ''))
     return Number.isNaN(parsed) ? null : parsed
   }
 
-  const experienceFilterFromText = (text) => {
-    if (/fresher|0\s*[\-–]?\s*2|0\s*to\s*2|0\s*2/i.test(text)) {
-      return { min: 0, max: 2 }
-    }
-    if (/mid\s*level|2\s*[\-–]?\s*5|2\s*to\s*5/i.test(text)) {
-      return { min: 2, max: 5 }
-    }
-    if (/senior|5\+|5\s*\+?\s*years|5\s*years\+?/i.test(text)) {
-      return { min: 5, max: Infinity }
-    }
+  const experienceFilterFromText = text => {
+    if (/fresher|0\s*[\-–]?\s*2|0\s*to\s*2|0\s*2/i.test(text)) return { min: 0, max: 2 }
+    if (/mid\s*level|2\s*[\-–]?\s*5|2\s*to\s*5/i.test(text)) return { min: 2, max: 5 }
+    if (/senior|5\+|5\s*\+?\s*years|5\s*years\+?/i.test(text)) return { min: 5, max: Infinity }
     const explicit = text.match(/(\d+)\s*(?:\+)?\s*(?:years|yrs|year|y)\b/i)
     if (explicit) {
       const years = Number(explicit[1])
@@ -151,7 +175,7 @@ export default function AdminDashboard({ onLogout }) {
     return null
   }
 
-  const salaryFilterFromText = (text) => {
+  const salaryFilterFromText = text => {
     if (/below\s*(\d+)/i.test(text)) {
       const match = text.match(/below\s*(\d+)/i)
       return { min: 0, max: Number(match[1]) }
@@ -172,19 +196,19 @@ export default function AdminDashboard({ onLogout }) {
     return new RegExp(`\\b${escaped}\\b`, 'i').test(text)
   }
 
-  const workTypeFilterFromText = (text) => {
+  const workTypeFilterFromText = text => {
     if (textContainsTerm(text, 'remote')) return 'Work From Home'
     if (textContainsTerm(text, 'hybrid')) return 'Hybrid'
     if (textContainsTerm(text, 'office') || textContainsTerm(text, 'onsite')) return 'In Office'
     return null
   }
 
-  const locationFromText = (text) => {
+  const locationFromText = text => {
     const cities = ['mumbai', 'pune', 'bangalore', 'hyderabad', 'delhi']
     return cities.find(city => textContainsTerm(text, city)) || null
   }
 
-  const roleSkillTermsFromText = (text) => {
+  const roleSkillTermsFromText = text => {
     const terms = new Set()
     const roleKeywords = ['hr', 'developer', 'manager', 'sap', 'react', 'python', 'frontend', 'backend', 'full stack', 'ui/ux', 'ux', 'data analyst', 'devops', 'qa', 'engineering', 'engineer', 'business analyst', 'sales']
     const skillKeywords = ['react', 'python', 'javascript', 'java', 'sql', 'aws', 'sap', 'excel', 'communication', 'management', 'node', 'angular', 'design']
@@ -193,11 +217,10 @@ export default function AdminDashboard({ onLogout }) {
     return Array.from(terms)
   }
 
-  const isCandidateQuery = (text) => {
-    return /candidate|candidates|skill|skills|experience|years|location|city|salary|role|position|developer|manager|hr|sap|react|python|remote|hybrid|office|resume|cv|count|total|how many/i.test(text)
-  }
+  const isCandidateQuery = text =>
+    /candidate|candidates|skill|skills|experience|years|location|city|salary|role|position|developer|manager|hr|sap|react|python|remote|hybrid|office|resume|cv|count|total|how many/i.test(text)
 
-  const findLocalCandidates = (text) => {
+  const findLocalCandidates = text => {
     const searchText = normalizeText(text)
     const includeCount = /\b(how many|total|count)\b/i.test(text)
     const experienceFilter = experienceFilterFromText(text)
@@ -206,7 +229,7 @@ export default function AdminDashboard({ onLogout }) {
     const location = locationFromText(searchText)
     const roleSkillTerms = roleSkillTermsFromText(searchText)
 
-    const matchesCandidate = (candidate) => {
+    const matchesCandidate = candidate => {
       const position = normalizeText(candidate.positionApplied)
       const skills = (candidate.skills || []).map(normalizeText)
       const locationFields = [candidate.currentLocation, candidate.preferredLocation1, candidate.preferredLocation2]
@@ -215,46 +238,27 @@ export default function AdminDashboard({ onLogout }) {
       const salary = parseNumber(candidate.expectedSalary)
       const experience = parseNumber(candidate.experienceYears)
 
-      if (location && !locationFields.some(field => field.includes(location))) {
-        return false
-      }
-
-      if (workTypeFilter && normalizeText(candidate.workTypePreference) !== normalizeText(workTypeFilter)) {
-        return false
-      }
-
-      if (salaryFilter && (salary === null || salary < salaryFilter.min || salary > salaryFilter.max)) {
-        return false
-      }
-
+      if (location && !locationFields.some(field => field.includes(location))) return false
+      if (workTypeFilter && normalizeText(candidate.workTypePreference) !== normalizeText(workTypeFilter)) return false
+      if (salaryFilter && (salary === null || salary < salaryFilter.min || salary > salaryFilter.max)) return false
       if (experienceFilter) {
         if (experience === null) return false
         if (experience < experienceFilter.min || experience > experienceFilter.max) return false
       }
-
       if (roleSkillTerms.length > 0) {
         const hasRoleSkill = roleSkillTerms.some(term =>
           position.includes(term) || skills.some(skill => skill.includes(term))
         )
         if (!hasRoleSkill) return false
       }
-
       return true
     }
 
     const candidates = applications.filter(matchesCandidate)
-    return {
-      candidates,
-      includeCount,
-      roleSkillTerms,
-      location,
-      experienceFilter,
-      salaryFilter,
-      workTypeFilter
-    }
+    return { candidates, includeCount, roleSkillTerms, location, experienceFilter, salaryFilter, workTypeFilter }
   }
 
-  const formatCandidateSummary = (candidate) => {
+  const formatCandidateSummary = candidate => {
     const name = `${candidate.firstName || 'Unknown'} ${candidate.lastName || ''}`.trim()
     const position = candidate.positionApplied || 'Unknown Role'
     const experience = candidate.experienceYears ? `${candidate.experienceYears} yrs` : 'N/A'
@@ -264,16 +268,12 @@ export default function AdminDashboard({ onLogout }) {
   }
 
   const responseSuggestions = ({ found, context }) => {
-    if (!found) {
-      return ['Clear Filters', 'Show All Candidates', 'Try Different Skill']
-    }
-    if (context === 'location') {
-      return ['Add Skill Filter', 'Add Salary Filter', 'Show All']
-    }
+    if (!found) return ['Clear Filters', 'Show All Candidates', 'Try Different Skill']
+    if (context === 'location') return ['Add Skill Filter', 'Add Salary Filter', 'Show All']
     return ['Filter by Location', 'Filter by Salary', 'Sort by Experience']
   }
 
-  const buildBuddyResponse = (query) => {
+  const buildBuddyResponse = query => {
     const normalized = normalizeText(query)
     if (!isCandidateQuery(normalized)) {
       setChatSuggestions(['Show All Candidates', 'Try Different Skill', 'Filter by Location'])
@@ -305,17 +305,16 @@ export default function AdminDashboard({ onLogout }) {
     return `🔍 Found ${candidates.length} candidates matching your search!\n\n${formattedResults}\n\nWant to refine further by location, salary or skills?`
   }
 
-  const appendChatMessage = (message) => {
+  const appendChatMessage = message => {
     setChatMessages(prev => [...prev, { ...message, id: `${message.role}-${Date.now()}` }])
   }
 
-  const processChatQuery = (text) => {
+  const processChatQuery = text => {
     const trimmedText = text.trim()
     if (!trimmedText) return
     appendChatMessage({ role: 'admin', text: trimmedText, timestamp: formatTimestamp() })
     setChatInputText('')
     setIsTyping(true)
-
     setTimeout(() => {
       const response = buildBuddyResponse(trimmedText)
       appendChatMessage({ role: 'bot', text: response, timestamp: formatTimestamp() })
@@ -332,14 +331,12 @@ export default function AdminDashboard({ onLogout }) {
     })
   }
 
-  const handleSendMessage = (event) => {
+  const handleSendMessage = event => {
     if (event) event.preventDefault()
     processChatQuery(chatInputText)
   }
 
-  const handleChipClick = (chip) => {
-    processChatQuery(chip)
-  }
+  const handleChipClick = chip => processChatQuery(chip)
 
   const handleClearChat = () => {
     setChatMessages([])
@@ -356,61 +353,19 @@ export default function AdminDashboard({ onLogout }) {
   }, [chatMessages, isTyping, chatOpen])
 
   function handleDelete(id) {
-    const application = applications.find(application => application.id === id)
+    const application = applications.find(app => app.id === id)
     if (!application) return
-
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${application.firstName} ${application.lastName}?`
-    )
+    const confirmed = window.confirm(`Are you sure you want to delete ${application.firstName} ${application.lastName}?`)
     if (!confirmed) return
-
-    const updated = applications.filter(application => application.id !== id)
-    setApplications(updated)
-    localStorage.setItem('kady_applications', JSON.stringify(updated))
+    dispatch(deleteApplication(id))
   }
 
   function toggleRowExpanded(id) {
     const newExpanded = new Set(expandedRows)
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id)
-    } else {
-      newExpanded.add(id)
-    }
+    if (newExpanded.has(id)) newExpanded.delete(id)
+    else newExpanded.add(id)
     setExpandedRows(newExpanded)
   }
-
-  useEffect(() => {
-    async function loadApplications() {
-      // Try fetching from backend first
-      try {
-        const { data: backendApps } = await api.get('/applications')
-        if (Array.isArray(backendApps) && backendApps.length > 0) {
-          // Merge backend data with local data for backward compatibility
-          const localApps = JSON.parse(localStorage.getItem('kady_applications') || '[]')
-          const localById = new Map(localApps.map(a => [a.uniqueId || a.id, a]))
-          const merged = backendApps.map(b => {
-            const local = localById.get(b.uniqueId || b.id)
-            // prefer the backend status unless local has a more recent change
-            return local && local.status !== b.status ? { ...b, status: local.status } : b
-          })
-          setApplications(merged.map(a => ({ ...a, status: a.status || 'Applied' })))
-          return
-        }
-      } catch (_err) {
-        // backend unavailable — use localStorage
-      }
-
-      // Fallback to localStorage
-      const storedApplications = JSON.parse(localStorage.getItem('kady_applications') || '[]')
-      setApplications(
-        storedApplications.map(a => ({
-          ...a,
-          status: a.status || 'Applied'
-        }))
-      )
-    }
-    loadApplications()
-  }, [])
 
   useEffect(() => {
     window.localStorage.setItem('adminFilterPanelOpen', JSON.stringify(filterPanelOpen))
@@ -421,19 +376,9 @@ export default function AdminDashboard({ onLogout }) {
     : '—'
 
   const positionOptions = [
-    'SAP FICO',
-    'Software Engineer',
-    'Frontend Developer',
-    'Backend Developer',
-    'Full Stack Developer',
-    'Data Analyst',
-    'DevOps Engineer',
-    'QA Tester',
-    'UI/UX Designer',
-    'Business Analyst',
-    'HR Executive',
-    'Recruitment Specialist',
-    'Sales Executive'
+    'SAP FICO', 'Software Engineer', 'Frontend Developer', 'Backend Developer', 'Full Stack Developer',
+    'Data Analyst', 'DevOps Engineer', 'QA Tester', 'UI/UX Designer', 'Business Analyst',
+    'HR Executive', 'Recruitment Specialist', 'Sales Executive'
   ]
 
   const experienceOptions = [
@@ -447,44 +392,24 @@ export default function AdminDashboard({ onLogout }) {
 
   const companyOptions = Array.from(new Set(applications.map(app => app.lastCompany).filter(Boolean)))
   const locationOptions = Array.from(
-    new Set(
-      applications
-        .flatMap(app => [app.currentLocation, app.preferredLocation1, app.preferredLocation2])
-        .filter(Boolean)
-    )
+    new Set(applications.flatMap(app => [app.currentLocation, app.preferredLocation1, app.preferredLocation2]).filter(Boolean))
   )
 
   function handleToggleWorkType(type) {
-    setPendingWorkTypes(prev =>
-      prev.includes(type) ? prev.filter(item => item !== type) : [...prev, type]
-    )
-  }
-
-  function updateApplicationStatus(id, newStatus) {
-    setApplications(prev => {
-      const updated = prev.map(app => (app.id === id ? { ...app, status: newStatus } : app))
-      try {
-        localStorage.setItem('kady_applications', JSON.stringify(updated))
-      } catch (err) {
-        // ignore
-      }
-      return updated
-    })
-
-    // attempt backend sync. If backend not present, this will silently fail.
-    api.patch(`/applications/${id}/status`, { status: newStatus }).catch(() => {})
+    setPendingWorkTypes(prev => (prev.includes(type) ? prev.filter(item => item !== type) : [...prev, type]))
   }
 
   function handleChangeStatus(id, status) {
-    updateApplicationStatus(id, status)
+    dispatch(changeStatus({ id, status }))
+    if (activeCandidate && activeCandidate.id === id) {
+      setActiveCandidate(prev => ({ ...prev, status }))
+    }
   }
 
   function handleAddSkill() {
     const skill = skillInput.trim()
     if (!skill) return
-    if (!pendingSkills.includes(skill)) {
-      setPendingSkills(prev => [...prev, skill])
-    }
+    if (!pendingSkills.includes(skill)) setPendingSkills(prev => [...prev, skill])
     setSkillInput('')
   }
 
@@ -631,22 +556,14 @@ export default function AdminDashboard({ onLogout }) {
   ].filter(Boolean).length
 
   const filterChips = []
-  if (appliedFilters.searchText) {
-    filterChips.push({ key: 'searchText', label: `Search: ${appliedFilters.searchText}` })
-  }
-  if (appliedFilters.position) {
-    filterChips.push({ key: 'position', label: `Role: ${appliedFilters.position}` })
-  }
-  if (appliedFilters.location) {
-    filterChips.push({ key: 'location', label: `Location: ${appliedFilters.location}` })
-  }
+  if (appliedFilters.searchText) filterChips.push({ key: 'searchText', label: `Search: ${appliedFilters.searchText}` })
+  if (appliedFilters.position) filterChips.push({ key: 'position', label: `Role: ${appliedFilters.position}` })
+  if (appliedFilters.location) filterChips.push({ key: 'location', label: `Location: ${appliedFilters.location}` })
   if (appliedFilters.experience) {
     const option = experienceOptions.find(opt => opt.value === appliedFilters.experience)
     filterChips.push({ key: 'experience', label: `Experience: ${option ? option.label : appliedFilters.experience}` })
   }
-  if (appliedFilters.status) {
-    filterChips.push({ key: 'status', label: `Status: ${appliedFilters.status}` })
-  }
+  if (appliedFilters.status) filterChips.push({ key: 'status', label: `Status: ${appliedFilters.status}` })
   if (appliedFilters.salaryMin || appliedFilters.salaryMax) {
     const min = appliedFilters.salaryMin || 'Min'
     const max = appliedFilters.salaryMax || 'Max'
@@ -657,15 +574,9 @@ export default function AdminDashboard({ onLogout }) {
     const to = appliedFilters.appliedTo || 'Any'
     filterChips.push({ key: 'appliedDate', label: `Applied: ${from} → ${to}` })
   }
-  if (appliedFilters.company) {
-    filterChips.push({ key: 'company', label: `Company: ${appliedFilters.company}` })
-  }
-  appliedFilters.workTypes.forEach(type => {
-    filterChips.push({ key: 'workType', value: type, label: `Work Type: ${type}` })
-  })
-  appliedFilters.skills.forEach(skill => {
-    filterChips.push({ key: 'skill', value: skill, label: `Skill: ${skill}` })
-  })
+  if (appliedFilters.company) filterChips.push({ key: 'company', label: `Company: ${appliedFilters.company}` })
+  appliedFilters.workTypes.forEach(type => filterChips.push({ key: 'workType', value: type, label: `Work Type: ${type}` }))
+  appliedFilters.skills.forEach(skill => filterChips.push({ key: 'skill', value: skill, label: `Skill: ${skill}` }))
 
   const filteredApplications = applications.filter(application => {
     const query = appliedFilters.searchText.toLowerCase().trim()
@@ -689,28 +600,16 @@ export default function AdminDashboard({ onLogout }) {
     if (query) {
       const selectedValue = fields[appliedFilters.searchField] || fields.all
       const values = Array.isArray(selectedValue) ? selectedValue : [selectedValue]
-      if (!values.some(value => value?.toLowerCase().includes(query))) {
-        return false
-      }
+      if (!values.some(value => value?.toLowerCase().includes(query))) return false
     }
-
-    if (appliedFilters.position && !`${application.positionApplied || ''}`.toLowerCase().includes(appliedFilters.position.toLowerCase())) {
-      return false
-    }
-
-    if (appliedFilters.company && !`${application.lastCompany || ''}`.toLowerCase().includes(appliedFilters.company.toLowerCase())) {
-      return false
-    }
-
+    if (appliedFilters.position && !`${application.positionApplied || ''}`.toLowerCase().includes(appliedFilters.position.toLowerCase())) return false
+    if (appliedFilters.company && !`${application.lastCompany || ''}`.toLowerCase().includes(appliedFilters.company.toLowerCase())) return false
     if (appliedFilters.location) {
       const locationMatch = [application.currentLocation, application.preferredLocation1, application.preferredLocation2]
         .filter(Boolean)
         .some(value => value.toLowerCase().includes(appliedFilters.location.toLowerCase()))
-      if (!locationMatch) {
-        return false
-      }
+      if (!locationMatch) return false
     }
-
     if (appliedFilters.experience) {
       const years = Number(application.experienceYears)
       if (appliedFilters.experience === '0-1' && !(years >= 0 && years <= 1)) return false
@@ -718,31 +617,16 @@ export default function AdminDashboard({ onLogout }) {
       if (appliedFilters.experience === '3-5' && !(years >= 3 && years <= 5)) return false
       if (appliedFilters.experience === '5+' && !(years > 5)) return false
     }
-
-    if (appliedFilters.workTypes.length > 0 && !appliedFilters.workTypes.includes(application.workTypePreference)) {
-      return false
-    }
-
+    if (appliedFilters.workTypes.length > 0 && !appliedFilters.workTypes.includes(application.workTypePreference)) return false
     if (appliedFilters.salaryMin) {
       const expectedSalary = Number(application.expectedSalary)
-      if (isNaN(expectedSalary) || expectedSalary < Number(appliedFilters.salaryMin)) {
-        return false
-      }
+      if (isNaN(expectedSalary) || expectedSalary < Number(appliedFilters.salaryMin)) return false
     }
-
     if (appliedFilters.salaryMax) {
       const expectedSalary = Number(application.expectedSalary)
-      if (isNaN(expectedSalary) || expectedSalary > Number(appliedFilters.salaryMax)) {
-        return false
-      }
+      if (isNaN(expectedSalary) || expectedSalary > Number(appliedFilters.salaryMax)) return false
     }
-
-    if (appliedFilters.status) {
-      if ((application.status || '').toLowerCase() !== appliedFilters.status.toLowerCase()) {
-        return false
-      }
-    }
-
+    if (appliedFilters.status && (application.status || '').toLowerCase() !== appliedFilters.status.toLowerCase()) return false
     if (appliedFilters.appliedFrom || appliedFilters.appliedTo) {
       const createdAt = application.createdAt ? new Date(application.createdAt) : null
       if (!createdAt || Number.isNaN(createdAt.getTime())) return false
@@ -755,391 +639,231 @@ export default function AdminDashboard({ onLogout }) {
         if (!Number.isNaN(toDate.getTime()) && createdAt > toDate) return false
       }
     }
-
     if (appliedFilters.skills.length > 0) {
       const candidateSkills = (application.skills || []).map(skill => skill.toLowerCase())
-      if (!appliedFilters.skills.every(skill => candidateSkills.includes(skill.toLowerCase()))) {
-        return false
-      }
+      if (!appliedFilters.skills.every(skill => candidateSkills.includes(skill.toLowerCase()))) return false
     }
-
     return true
   })
 
   const lastFiltered = filteredApplications.length
 
+  function handleLogout() {
+    dispatch(logout())
+    onLogout?.()
+  }
+
+  const StatusControl = ({ application, size = 'small' }) => (
+    <FormControl size="small" sx={{ minWidth: 150 }}>
+      <Select
+        value={application.status || 'Applied'}
+        onChange={e => handleChangeStatus(application.id, e.target.value)}
+        renderValue={value => <Chip size="small" color={statusColor(value)} label={value} />}
+        sx={{ '& .MuiSelect-select': { py: 0.5 } }}
+      >
+        {STATUS_OPTIONS.map(s => (
+          <MenuItem key={s} value={s}>{s}</MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  )
+
   const renderCardView = () => (
-    <div className="application-list">
+    <Grid container spacing={2}>
       {filteredApplications.map(application => (
-        <article key={application.id} className="application-card">
-          <div className="application-card-header">
-            <div>
-              <h3>{application.firstName} {application.lastName}</h3>
-              <p className="muted">{application.positionApplied || 'Position not specified'}</p>
-              <p className="muted">ID: {application.uniqueId || 'N/A'}</p>
-            </div>
-            <div className="card-header-actions">
-              <button
-                type="button"
-                className="delete-btn"
-                onClick={() => handleDelete(application.id)}
-                title="Delete candidate"
-              >
-                🗑️
-              </button>
-              <div className="status-control">
-                <span className={`status-badge status-${(application.status || 'Applied')
-                  .toLowerCase()
-                  .replace(/\s+/g, '-')}`}>{application.status || 'Applied'}</span>
-                <select
-                  className="status-select"
-                  value={application.status || 'Applied'}
-                  onChange={e => handleChangeStatus(application.id, e.target.value)}
-                >
-                  {STATUS_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          <div className="application-grid">
-            <div className="application-item">
-              <strong>Contact</strong>
-              {application.phone || 'N/A'}
-            </div>
-            <div className="application-item">
-              <strong>Email</strong>
-              {application.email || 'N/A'}
-            </div>
-            <div className="application-item">
-              <strong>Experience</strong>
-              {application.experienceYears ? `${application.experienceYears} years` : 'N/A'}
-            </div>
-            <div className="application-item">
-              <strong>Relevant Field</strong>
-              {application.relevantExp || 'N/A'}
-            </div>
-            <div className="application-item">
-              <strong>Last Company</strong>
-              {application.lastCompany || 'N/A'}
-            </div>
-            <div className="application-item">
-              <strong>Expected Salary</strong>
-              {application.expectedSalary || 'N/A'}
-            </div>
-            <div className="application-item">
-              <strong>Resume</strong>
-              {application.resumeName ? (
-                <a
-                  href={application.resumeData}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="resume-link"
-                >
-                  {application.resumeName}
-                </a>
-              ) : (
-                'N/A'
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="card-view-full-info-btn"
-            onClick={() => {
-              if (closeTimeoutRef.current) {
-                window.clearTimeout(closeTimeoutRef.current)
-                closeTimeoutRef.current = null
-              }
-              setActiveCandidate(application)
-              setFullInfoClosing(false)
-              setFullInfoOpen(true)
-            }}
-          >
-            View Full Information
-            <span className="card-view-btn-icon">→</span>
-          </button>
-        </article>
+        <Grid item xs={12} md={6} key={application.id}>
+          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <CardContent sx={{ flexGrow: 1 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                <Box>
+                  <Typography variant="h6">{application.firstName} {application.lastName}</Typography>
+                  <Typography variant="body2" color="text.secondary">{application.positionApplied || 'Position not specified'}</Typography>
+                  <Typography variant="caption" color="text.secondary">ID: {application.uniqueId || 'N/A'}</Typography>
+                </Box>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <StatusControl application={application} />
+                  <Tooltip title="Delete candidate">
+                    <IconButton color="error" size="small" onClick={() => handleDelete(application.id)}>
+                      <DeleteOutlineRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              </Stack>
+              <Divider sx={{ my: 1.5 }} />
+              <Grid container spacing={1.5}>
+                {[
+                  ['Contact', application.phone || 'N/A'],
+                  ['Email', application.email || 'N/A'],
+                  ['Experience', application.experienceYears ? `${application.experienceYears} years` : 'N/A'],
+                  ['Last Company', application.lastCompany || 'N/A'],
+                  ['Expected Salary', application.expectedSalary || 'N/A'],
+                  ['Work Type', application.workTypePreference || 'N/A']
+                ].map(([label, value]) => (
+                  <Grid item xs={6} key={label}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{label}</Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>{value}</Typography>
+                  </Grid>
+                ))}
+                <Grid item xs={12}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Resume</Typography>
+                  {application.resumeName ? (
+                    <MuiLink href={application.resumeData} target="_blank" rel="noreferrer">{application.resumeName}</MuiLink>
+                  ) : (
+                    <Typography variant="body2">N/A</Typography>
+                  )}
+                </Grid>
+              </Grid>
+            </CardContent>
+            <Box sx={{ p: 2, pt: 0 }}>
+              <Button fullWidth variant="outlined" endIcon={<KeyboardArrowRightRoundedIcon />} onClick={() => openFullInfo(application)}>
+                View Full Information
+              </Button>
+            </Box>
+          </Card>
+        </Grid>
       ))}
-    </div>
+    </Grid>
   )
 
   const renderTableView = () => (
-    <div className="application-table-wrapper">
-      <table className="application-table">
-        <thead>
-          <tr>
-            <th style={{ width: '40px' }}></th>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Position</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Status</th>
-            <th>Resume</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
+    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+      <Table size="small">
+        <TableHead>
+          <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'rgba(108,99,255,0.06)' } }}>
+            <TableCell width={40} />
+            <TableCell>ID</TableCell>
+            <TableCell>Name</TableCell>
+            <TableCell>Position</TableCell>
+            <TableCell>Email</TableCell>
+            <TableCell>Phone</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell>Resume</TableCell>
+            <TableCell />
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {filteredApplications.map(application => (
             <React.Fragment key={application.id}>
-              <tr className={expandedRows.has(application.id) ? 'expanded-row' : ''}>
-                <td>
-                  <button
-                    type="button"
-                    className="expand-btn"
-                    onClick={() => toggleRowExpanded(application.id)}
-                    title={expandedRows.has(application.id) ? 'Collapse details' : 'Expand details'}
-                  >
-                    <span className={`chevron ${expandedRows.has(application.id) ? 'chevron-down' : ''}`}>›</span>
-                  </button>
-                </td>
-                <td>{application.uniqueId || 'N/A'}</td>
-                <td>{application.firstName} {application.lastName}</td>
-                <td>{application.positionApplied || 'N/A'}</td>
-                <td>{application.email || 'N/A'}</td>
-                <td>{application.phone || 'N/A'}</td>
-                <td>
-                  <div className="status-control table-status">
-                    <span className={`status-badge status-${(application.status || 'Applied')
-                      .toLowerCase()
-                      .replace(/\s+/g, '-')}`}>{application.status || 'Applied'}</span>
-                    <select
-                      className="status-select"
-                      value={application.status || 'Applied'}
-                      onChange={e => handleChangeStatus(application.id, e.target.value)}
-                    >
-                      {STATUS_OPTIONS.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                </td>
-                <td>
+              <TableRow hover>
+                <TableCell>
+                  <IconButton size="small" onClick={() => toggleRowExpanded(application.id)}>
+                    {expandedRows.has(application.id) ? <KeyboardArrowDownRoundedIcon /> : <KeyboardArrowRightRoundedIcon />}
+                  </IconButton>
+                </TableCell>
+                <TableCell>{application.uniqueId || 'N/A'}</TableCell>
+                <TableCell>{application.firstName} {application.lastName}</TableCell>
+                <TableCell>{application.positionApplied || 'N/A'}</TableCell>
+                <TableCell>{application.email || 'N/A'}</TableCell>
+                <TableCell>{application.phone || 'N/A'}</TableCell>
+                <TableCell><StatusControl application={application} /></TableCell>
+                <TableCell>
                   {application.resumeName ? (
-                    <a href={application.resumeData} target="_blank" rel="noreferrer" className="resume-link">
-                      {application.resumeName}
-                    </a>
-                  ) : (
-                    'N/A'
-                  )}
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="delete-btn table-delete-btn"
-                    onClick={() => handleDelete(application.id)}
-                    title="Delete candidate"
-                  >
-                    🗑️
-                  </button>
-                </td>
-              </tr>
-              {expandedRows.has(application.id) && (
-                <tr className="detail-row">
-                  <td colSpan="9">
-                    <div className="detail-row-panel">
-                      <div className="detail-row-top">
-                        <div className="detail-row-main">
-                          <div className="detail-row-field">
-                            <span className="detail-row-label">Name</span>
-                            <span className="detail-row-value">{application.firstName} {application.lastName}</span>
-                          </div>
-                          <div className="detail-row-field">
-                            <span className="detail-row-label">Email</span>
-                            <span className="detail-row-value">{application.email || 'N/A'}</span>
-                          </div>
-                          <div className="detail-row-field">
-                            <span className="detail-row-label">Phone</span>
-                            <span className="detail-row-value">{application.phone || 'N/A'}</span>
-                          </div>
-                          <div className="detail-row-field">
-                            <span className="detail-row-label">Position</span>
-                            <span className="detail-row-value">{application.positionApplied || 'N/A'}</span>
-                          </div>
-                          <div className="detail-row-field">
-                            <span className="detail-row-label">Experience</span>
-                            <span className="detail-row-value">{application.experienceYears ? `${application.experienceYears} yrs` : 'N/A'}</span>
-                          </div>
-                          <div className="detail-row-field">
-                            <span className="detail-row-label">Location</span>
-                            <span className="detail-row-value">{application.currentLocation || application.preferredLocation1 || 'N/A'}</span>
-                          </div>
-                          <div className="detail-row-field">
-                            <span className="detail-row-label">Work Type</span>
-                            <span className="detail-row-value">{application.workTypePreference || 'N/A'}</span>
-                          </div>
-                          <div className="detail-row-field">
-                            <span className="detail-row-label">Date Applied</span>
-                            <span className="detail-row-value">{application.createdAt ? new Date(application.createdAt).toLocaleDateString() : 'N/A'}</span>
-                          </div>
-                        </div>
-                        <div className="detail-row-status">
-                          <span className={`status-badge status-${(application.status || 'Applied').toLowerCase().replace(/\s+/g, '-')}`}>
-                            {application.status || 'Applied'}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="detail-row-skills">
-                        <span className="detail-row-label">Skills</span>
-                        <div className="skills-display">
-                          {application.skills && application.skills.length > 0 ? (
-                            application.skills.map((skill, idx) => (
-                              <span key={idx} className="skill-badge">{skill}</span>
-                            ))
-                          ) : (
-                            <span className="detail-value">No skills listed</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="detail-row-footer">
-                        <button
-                          type="button"
-                          className="view-full-info-btn"
-                          onClick={() => {
-                            if (closeTimeoutRef.current) {
-                              window.clearTimeout(closeTimeoutRef.current)
-                              closeTimeoutRef.current = null
-                            }
-                            setActiveCandidate(application)
-                            setFullInfoClosing(false)
-                            setFullInfoOpen(true)
-                          }}
-                        >
-                          View Full Information →
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
+                    <MuiLink href={application.resumeData} target="_blank" rel="noreferrer">{application.resumeName}</MuiLink>
+                  ) : 'N/A'}
+                </TableCell>
+                <TableCell>
+                  <IconButton color="error" size="small" onClick={() => handleDelete(application.id)}>
+                    <DeleteOutlineRoundedIcon fontSize="small" />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell colSpan={9} sx={{ py: 0, borderBottom: expandedRows.has(application.id) ? undefined : 'none' }}>
+                  <Collapse in={expandedRows.has(application.id)} timeout="auto" unmountOnExit>
+                    <Box sx={{ py: 2 }}>
+                      <Grid container spacing={1.5}>
+                        {[
+                          ['Experience', application.experienceYears ? `${application.experienceYears} yrs` : 'N/A'],
+                          ['Location', application.currentLocation || application.preferredLocation1 || 'N/A'],
+                          ['Work Type', application.workTypePreference || 'N/A'],
+                          ['Date Applied', application.createdAt ? new Date(application.createdAt).toLocaleDateString() : 'N/A']
+                        ].map(([label, value]) => (
+                          <Grid item xs={6} md={3} key={label}>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{label}</Typography>
+                            <Typography variant="body2">{value}</Typography>
+                          </Grid>
+                        ))}
+                      </Grid>
+                      <Box sx={{ mt: 1.5 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Skills</Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {application.skills && application.skills.length > 0
+                            ? application.skills.map((skill, idx) => <Chip key={idx} size="small" label={skill} />)
+                            : <Typography variant="body2">No skills listed</Typography>}
+                        </Stack>
+                      </Box>
+                      <Button sx={{ mt: 1.5 }} size="small" endIcon={<KeyboardArrowRightRoundedIcon />} onClick={() => openFullInfo(application)}>
+                        View Full Information
+                      </Button>
+                    </Box>
+                  </Collapse>
+                </TableCell>
+              </TableRow>
             </React.Fragment>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </TableContainer>
   )
 
   const renderListView = () => (
-    <ul className="application-list-view">
+    <Stack spacing={1.5}>
       {filteredApplications.map(application => (
-        <li key={application.id} className="application-list-item">
-          <div className="list-view-top">
-            <div>
-              <strong>{application.firstName} {application.lastName}</strong>
-              <p className="muted">{application.positionApplied || 'Position not specified'}</p>
-            </div>
-            <button
-              type="button"
-              className="delete-btn"
-              onClick={() => handleDelete(application.id)}
-              title="Delete candidate"
-            >
-              🗑️
-            </button>
-              <div className="status-control list-status">
-                <span className={`status-badge status-${(application.status || 'Applied')
-                  .toLowerCase()
-                  .replace(/\s+/g, '-')}`}>{application.status || 'Applied'}</span>
-                <select
-                  className="status-select"
-                  value={application.status || 'Applied'}
-                  onChange={e => handleChangeStatus(application.id, e.target.value)}
-                >
-                  {STATUS_OPTIONS.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-          </div>
-          <div className="application-list-meta">
-            <span>{application.email || 'N/A'}</span>
-            <span>{application.phone || 'N/A'}</span>
-            <span>
-              {application.resumeName ? (
-                <a href={application.resumeData} target="_blank" rel="noreferrer" className="resume-link">
-                  View Resume
-                </a>
-              ) : (
-                'No resume'
-              )}
-            </span>
-          </div>
-          <div className="list-view-actions">
-            <button
-              type="button"
-              className="list-view-full-info-btn"
-              onClick={() => {
-                if (closeTimeoutRef.current) {
-                  window.clearTimeout(closeTimeoutRef.current)
-                  closeTimeoutRef.current = null
-                }
-                setActiveCandidate(application)
-                setFullInfoClosing(false)
-                setFullInfoOpen(true)
-              }}
-            >
-              <span className="list-view-btn-icon">👁️</span>
-              View Full Information
-            </button>
-          </div>
-        </li>
+        <Paper key={application.id} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5}>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="subtitle1" fontWeight={700}>{application.firstName} {application.lastName}</Typography>
+              <Typography variant="body2" color="text.secondary">{application.positionApplied || 'Position not specified'}</Typography>
+              <Stack direction="row" spacing={2} sx={{ mt: 0.5 }} flexWrap="wrap" useFlexGap>
+                <Typography variant="caption" color="text.secondary">{application.email || 'N/A'}</Typography>
+                <Typography variant="caption" color="text.secondary">{application.phone || 'N/A'}</Typography>
+                {application.resumeName
+                  ? <MuiLink variant="caption" href={application.resumeData} target="_blank" rel="noreferrer">View Resume</MuiLink>
+                  : <Typography variant="caption" color="text.secondary">No resume</Typography>}
+              </Stack>
+            </Box>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <StatusControl application={application} />
+              <Button size="small" variant="outlined" startIcon={<VisibilityRoundedIcon />} onClick={() => openFullInfo(application)}>
+                Details
+              </Button>
+              <IconButton color="error" size="small" onClick={() => handleDelete(application.id)}>
+                <DeleteOutlineRoundedIcon fontSize="small" />
+              </IconButton>
+            </Stack>
+          </Stack>
+        </Paper>
       ))}
-    </ul>
+    </Stack>
   )
 
   const renderTitlesView = () => (
-    <div className="title-view-grid">
+    <Grid container spacing={2}>
       {filteredApplications.map(application => (
-        <div key={application.id} className="title-view-card">
-          <div className="title-card-header">
-            <h3>{application.firstName} {application.lastName}</h3>
-            <button
-              type="button"
-              className="delete-btn"
-              onClick={() => handleDelete(application.id)}
-              title="Delete candidate"
-            >
-              🗑️
-            </button>
-            <div className="status-control title-status">
-              <span className={`status-badge status-${(application.status || 'Applied')
-                .toLowerCase()
-                .replace(/\s+/g, '-')}`}>{application.status || 'Applied'}</span>
-              <select
-                className="status-select"
-                value={application.status || 'Applied'}
-                onChange={e => handleChangeStatus(application.id, e.target.value)}
-              >
-                {STATUS_OPTIONS.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <p>{application.positionApplied || 'No position'}</p>
-          <p className="muted">{application.createdAt ? new Date(application.createdAt).toLocaleDateString() : 'Unknown date'}</p>
-          <button
-            type="button"
-            className="title-card-overlay"
-            onClick={() => {
-              if (closeTimeoutRef.current) {
-                window.clearTimeout(closeTimeoutRef.current)
-                closeTimeoutRef.current = null
-              }
-              setActiveCandidate(application)
-              setFullInfoClosing(false)
-              setFullInfoOpen(true)
-            }}
-          >
-            <span>View Full Information <span className="title-overlay-icon">→</span></span>
-          </button>
-        </div>
+        <Grid item xs={12} sm={6} md={4} key={application.id}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                <Typography variant="subtitle1" fontWeight={700}>{application.firstName} {application.lastName}</Typography>
+                <IconButton color="error" size="small" onClick={() => handleDelete(application.id)}>
+                  <DeleteOutlineRoundedIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+              <Typography variant="body2" sx={{ mt: 0.5 }}>{application.positionApplied || 'No position'}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {application.createdAt ? new Date(application.createdAt).toLocaleDateString() : 'Unknown date'}
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Chip size="small" color={statusColor(application.status || 'Applied')} label={application.status || 'Applied'} />
+              </Box>
+              <Button fullWidth size="small" sx={{ mt: 1.5 }} endIcon={<KeyboardArrowRightRoundedIcon />} onClick={() => openFullInfo(application)}>
+                View Full Information
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
       ))}
-    </div>
+    </Grid>
   )
 
   const renderCurrentView = () => {
@@ -1149,586 +873,445 @@ export default function AdminDashboard({ onLogout }) {
     return renderCardView()
   }
 
+  const infoRow = (label, value) => (
+    <Grid item xs={12} sm={6}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{label}</Typography>
+      <Typography variant="body2">{value}</Typography>
+    </Grid>
+  )
+
   return (
     <>
-      <section className="card admin-dashboard-card">
-        <div className="admin-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span className="badge">Admin Panel</span>
-          <div>
-            <h2>Candidate Applications</h2>
-            <p className="muted">Review the latest applications submitted through the portal.</p>
-          </div>
-        </div>
-        <div className="admin-header-right">
-          <button
-            type="button"
-            className="filter-toggle-btn"
-            onClick={() => setFilterPanelOpen(prev => !prev)}
-          >
-            {filterPanelOpen ? '🔼 Hide Filters' : '🔽 Show Filters'}
-            {activeFilterCount > 0 && (
-              <span className="filter-toggle-count">{activeFilterCount}</span>
-            )}
-          </button>
-          <TimezoneWidget />
-          <button
-            type="button"
-            className="logout-btn"
-            onClick={async () => {
-              try {
-                await api.post('/auth/logout')
-              } catch (_err) {
-                // best-effort: clear locally regardless
-              }
-              localStorage.removeItem('kady_admin_token')
-              localStorage.removeItem('kady_admin_user')
-              onLogout?.()
-            }}
-            title="Logout"
-          >
-            <span>Logout</span>
-            <span className="logout-icon">→</span>
-          </button>
-        </div>
-      </div>
-
-      {filterChips.length > 0 && (
-        <div className="active-filter-chips">
-          {filterChips.map(chip => (
-            <span key={`${chip.key}-${chip.value || chip.label}`} className="filter-chip">
-              {chip.label}
-              <button
-                type="button"
-                onClick={() => handleRemoveAppliedFilter(chip.key, chip.value)}
-                aria-label={`Remove ${chip.label}`}
+      <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, border: '1px solid rgba(15,23,42,0.06)' }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} alignItems={{ md: 'center' }}>
+          <Box>
+            <Chip label="Admin Panel" color="primary" size="small" sx={{ mb: 0.5 }} />
+            <Typography variant="h5">Candidate Applications</Typography>
+            <Typography variant="body2" color="text.secondary">Review the latest applications submitted through the portal.</Typography>
+          </Box>
+          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Badge badgeContent={activeFilterCount} color="primary">
+              <Button
+                variant="outlined"
+                startIcon={<FilterListRoundedIcon />}
+                onClick={() => setFilterPanelOpen(prev => !prev)}
               >
-                ×
-              </button>
-            </span>
+                {filterPanelOpen ? 'Hide Filters' : 'Show Filters'}
+              </Button>
+            </Badge>
+            <TimezoneWidget />
+            <Button color="error" variant="contained" startIcon={<LogoutRoundedIcon />} onClick={handleLogout}>
+              Logout
+            </Button>
+          </Stack>
+        </Stack>
+
+        {filterChips.length > 0 && (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+            {filterChips.map(chip => (
+              <Chip
+                key={`${chip.key}-${chip.value || chip.label}`}
+                label={chip.label}
+                onDelete={() => handleRemoveAppliedFilter(chip.key, chip.value)}
+                size="small"
+                variant="outlined"
+              />
+            ))}
+          </Stack>
+        )}
+
+        <Grid container spacing={2} sx={{ mt: 0.5 }}>
+          {[
+            ['Total Applications', applications.length],
+            ['Showing', lastFiltered],
+            ['Last Submitted', lastSubmitted]
+          ].map(([label, value]) => (
+            <Grid item xs={12} sm={4} key={label}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(108,99,255,0.04)' }}>
+                <Typography variant="caption" color="text.secondary">{label}</Typography>
+                <Typography variant="h6">{value}</Typography>
+              </Paper>
+            </Grid>
           ))}
-        </div>
-      )}
+        </Grid>
 
-      <div className="admin-summary">
-        <div className="summary-item">
-          <span>Total Applications</span>
-          <strong>{applications.length}</strong>
-        </div>
-        <div className="summary-item">
-          <span>Showing</span>
-          <strong>{lastFiltered}</strong>
-        </div>
-        <div className="summary-item">
-          <span>Last Submitted</span>
-          <strong>{lastSubmitted}</strong>
-        </div>
-      </div>
+        <Collapse in={filterPanelOpen}>
+          <Paper variant="outlined" sx={{ p: 2, mt: 2, borderRadius: 2 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700}>Candidate Filters</Typography>
+                <Typography variant="body2" color="text.secondary">Choose criteria and click Apply Filters to update the list.</Typography>
+              </Box>
+              {activeFilterCount > 0 && <Chip size="small" color="primary" label={`${activeFilterCount} active`} />}
+            </Stack>
 
-      <div className={`admin-filter-panel ${filterPanelOpen ? 'open' : 'collapsed'}`}>
-        <div className="filter-panel-header">
-          <div>
-            <h3>Candidate Filters</h3>
-            <p className="muted">Choose criteria and click Apply Filters to update the list.</p>
-          </div>
-          {activeFilterCount > 0 && (
-            <span className="filter-badge">{activeFilterCount} active</span>
-          )}
-        </div>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField label="Keyword Search" value={pendingFilterText} onChange={e => setPendingFilterText(e.target.value)} placeholder="Search name, position, email, company..." />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField select label="Search In" value={pendingFilterField} onChange={e => setPendingFilterField(e.target.value)}>
+                  <MenuItem value="all">All Fields</MenuItem>
+                  <MenuItem value="name">Name</MenuItem>
+                  <MenuItem value="position">Position</MenuItem>
+                  <MenuItem value="email">Email</MenuItem>
+                  <MenuItem value="phone">Phone</MenuItem>
+                  <MenuItem value="company">Company</MenuItem>
+                  <MenuItem value="id">Unique ID</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Position / Role"
+                  value={pendingPosition}
+                  onChange={e => setPendingPosition(e.target.value)}
+                  placeholder="Any position"
+                  inputProps={{ list: 'position-options' }}
+                />
+                <datalist id="position-options">
+                  {positionOptions.map(position => <option key={position} value={position} />)}
+                </datalist>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Location"
+                  value={pendingLocation}
+                  onChange={e => setPendingLocation(e.target.value)}
+                  placeholder="City or region"
+                  inputProps={{ list: 'location-options' }}
+                />
+                <datalist id="location-options">
+                  {locationOptions.map(location => <option key={location} value={location} />)}
+                </datalist>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField select label="Experience" value={pendingExperience} onChange={e => setPendingExperience(e.target.value)}>
+                  <MenuItem value="">Any experience</MenuItem>
+                  {experienceOptions.map(option => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField select label="Application Status" value={pendingStatus} onChange={e => setPendingStatus(e.target.value)}>
+                  <MenuItem value="">All statuses</MenuItem>
+                  {STATUS_OPTIONS.map(status => <MenuItem key={status} value={status}>{status}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Work Type Preference</Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {workTypeOptions.map(type => (
+                    <Chip
+                      key={type}
+                      label={type}
+                      clickable
+                      color={pendingWorkTypes.includes(type) ? 'primary' : 'default'}
+                      variant={pendingWorkTypes.includes(type) ? 'filled' : 'outlined'}
+                      onClick={() => handleToggleWorkType(type)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <TextField type="number" label="Salary Min" value={pendingSalaryMin} onChange={e => setPendingSalaryMin(e.target.value)} />
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <TextField type="number" label="Salary Max" value={pendingSalaryMax} onChange={e => setPendingSalaryMax(e.target.value)} />
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <TextField type="date" label="Applied From" InputLabelProps={{ shrink: true }} value={pendingAppliedFrom} onChange={e => setPendingAppliedFrom(e.target.value)} />
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <TextField type="date" label="Applied To" InputLabelProps={{ shrink: true }} value={pendingAppliedTo} onChange={e => setPendingAppliedTo(e.target.value)} />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField select label="Company" value={pendingCompany} onChange={e => setPendingCompany(e.target.value)}>
+                  <MenuItem value="">Any company</MenuItem>
+                  {companyOptions.map(company => <MenuItem key={company} value={company}>{company}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Stack direction="row" spacing={1}>
+                  <TextField
+                    label="Skills"
+                    value={skillInput}
+                    onChange={e => setSkillInput(e.target.value)}
+                    onKeyDown={handleSkillInputKeyDown}
+                    placeholder="Add skill tag and press Enter"
+                  />
+                  <Button variant="outlined" onClick={handleAddSkill}>Add</Button>
+                </Stack>
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                  {pendingSkills.map(skill => (
+                    <Chip key={skill} label={skill} size="small" onDelete={() => setPendingSkills(prev => prev.filter(item => item !== skill))} />
+                  ))}
+                </Stack>
+              </Grid>
+            </Grid>
 
-        <div className="filter-grid">
-          <div className="filter-box">
-            <label htmlFor="filter-text">Keyword Search</label>
-            <input
-              id="filter-text"
-              type="text"
-              value={pendingFilterText}
-              onChange={e => setPendingFilterText(e.target.value)}
-              placeholder="Search name, position, email, company..."
-              className="filter-input"
-            />
-          </div>
+            <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+              <Button variant="contained" onClick={handleApplyFilters}>
+                Apply Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              </Button>
+              <Button variant="text" onClick={handleClearFilters}>Clear Filters</Button>
+            </Stack>
+          </Paper>
+        </Collapse>
 
-          <div className="filter-box">
-            <label htmlFor="filter-field">Search In</label>
-            <select
-              id="filter-field"
-              value={pendingFilterField}
-              onChange={e => setPendingFilterField(e.target.value)}
-              className="view-select"
-            >
-              <option value="all">All Fields</option>
-              <option value="name">Name</option>
-              <option value="position">Position</option>
-              <option value="email">Email</option>
-              <option value="phone">Phone</option>
-              <option value="company">Company</option>
-              <option value="id">Unique ID</option>
-            </select>
-          </div>
-
-          <div className="filter-box">
-            <label htmlFor="position-filter">Position / Role</label>
-            <input
-              id="position-filter"
-              list="position-options"
-              value={pendingPosition}
-              onChange={e => setPendingPosition(e.target.value)}
-              placeholder="Any position"
-              className="filter-input"
-            />
-            <datalist id="position-options">
-              {positionOptions.map(position => (
-                <option key={position} value={position} />
-              ))}
-            </datalist>
-          </div>
-
-          <div className="filter-box">
-            <label htmlFor="location-filter">Location</label>
-            <input
-              id="location-filter"
-              list="location-options"
-              type="text"
-              value={pendingLocation}
-              onChange={e => setPendingLocation(e.target.value)}
-              placeholder="City or region"
-              className="filter-input"
-            />
-            <datalist id="location-options">
-              {locationOptions.map(location => (
-                <option key={location} value={location} />
-              ))}
-            </datalist>
-          </div>
-
-          <div className="filter-box">
-            <label htmlFor="experience-filter">Experience</label>
-            <select
-              id="experience-filter"
-              value={pendingExperience}
-              onChange={e => setPendingExperience(e.target.value)}
-              className="view-select"
-            >
-              <option value="">Any experience</option>
-              {experienceOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-box">
-            <label>Work Type Preference</label>
-            <div className="work-type-options">
-              {workTypeOptions.map(type => (
-                <button
-                  key={type}
-                  type="button"
-                  className={`chip ${pendingWorkTypes.includes(type) ? 'chip-selected' : ''}`}
-                  onClick={() => handleToggleWorkType(type)}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="filter-box">
-            <label htmlFor="status-filter">Application Status</label>
-            <select
-              id="status-filter"
-              value={pendingStatus}
-              onChange={e => setPendingStatus(e.target.value)}
-              className="view-select"
-            >
-              <option value="">All statuses</option>
-              {STATUS_OPTIONS.map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-box">
-            <label>Salary Range</label>
-            <div className="salary-range-row">
-              <input
-                type="number"
-                min="0"
-                value={pendingSalaryMin}
-                onChange={e => setPendingSalaryMin(e.target.value)}
-                placeholder="Min"
-                className="filter-input"
-              />
-              <input
-                type="number"
-                min="0"
-                value={pendingSalaryMax}
-                onChange={e => setPendingSalaryMax(e.target.value)}
-                placeholder="Max"
-                className="filter-input"
-              />
-            </div>
-          </div>
-
-          <div className="filter-box filter-box-full">
-            <label>Date Applied</label>
-            <div className="salary-range-row">
-              <input
-                type="date"
-                value={pendingAppliedFrom}
-                onChange={e => setPendingAppliedFrom(e.target.value)}
-                className="filter-input"
-              />
-              <input
-                type="date"
-                value={pendingAppliedTo}
-                onChange={e => setPendingAppliedTo(e.target.value)}
-                className="filter-input"
-              />
-            </div>
-          </div>
-
-          <div className="filter-box">
-            <label htmlFor="company-filter">Company</label>
-            <select
-              id="company-filter"
-              value={pendingCompany}
-              onChange={e => setPendingCompany(e.target.value)}
-              className="view-select"
-            >
-              <option value="">Any company</option>
-              {companyOptions.map(company => (
-                <option key={company} value={company}>{company}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-box filter-box-full">
-            <label htmlFor="skills-filter">Skills</label>
-            <div className="skills-input-row">
-              <input
-                id="skills-filter"
-                type="text"
-                value={skillInput}
-                onChange={e => setSkillInput(e.target.value)}
-                onKeyDown={handleSkillInputKeyDown}
-                placeholder="Add skill tag and press Enter"
-                className="filter-input"
-              />
-              <button type="button" className="tag-add-btn" onClick={handleAddSkill}>
-                Add
-              </button>
-            </div>
-            <div className="skill-tags">
-              {pendingSkills.map(skill => (
-                <span key={skill} className="skill-tag">
-                  {skill}
-                  <button type="button" className="skill-remove-btn" onClick={() => setPendingSkills(prev => prev.filter(item => item !== skill))}>
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="filter-actions">
-          <button type="button" className="apply-filters-btn" onClick={handleApplyFilters}>
-            Apply Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-          </button>
-          <button type="button" className="clear-filters-btn" onClick={handleClearFilters}>
-            Clear Filters
-          </button>
-        </div>
-      </div>
-
-      <div className="admin-controls">
-        <div className="view-group">
-          <label className="view-mode-label" htmlFor="view-mode-select">
-            View Mode
-          </label>
-          <select
-            id="view-mode-select"
+        <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={1.5} sx={{ my: 2 }}>
+          <Typography variant="body2" color="text.secondary">View Mode</Typography>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
             value={viewMode}
-            onChange={e => setViewMode(e.target.value)}
-            className="view-select"
+            onChange={(_e, value) => value && setViewMode(value)}
           >
             {VIEW_MODES.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+              <ToggleButton key={option.value} value={option.value}>{option.label}</ToggleButton>
             ))}
-          </select>
-        </div>
-      </div>
+          </ToggleButtonGroup>
+        </Stack>
 
-      {applications.length === 0 ? (
-        <div className="empty-state">
-          No applications found yet. Candidates will appear here after submitting the form.
-        </div>
-      ) : filteredApplications.length === 0 ? (
-        <div className="empty-state">
-          No candidates match your filter. Try a different search term.
-        </div>
-      ) : (
-        renderCurrentView()
-      )}
-    </section>
-
-      {(fullInfoOpen || fullInfoClosing) && activeCandidate && (
-        <div className={`full-info-overlay ${fullInfoClosing ? 'closing' : 'open'}`} onClick={handleFullInfoOverlayClick}>
-          <div className={`full-info-modal ${fullInfoClosing ? 'closing' : 'open'}`} onClick={e => e.stopPropagation()}>
-            <button type="button" className="full-info-close" onClick={e => { e.stopPropagation(); closeFullInfo() }} aria-label="Close full information">
-              ×
-            </button>
-            <div className="full-info-header">
-              <div className="full-info-avatar">{`${activeCandidate.firstName?.[0] || ''}${activeCandidate.lastName?.[0] || ''}`.toUpperCase()}</div>
-              <div>
-                <h2>{activeCandidate.firstName} {activeCandidate.lastName}</h2>
-                <p className="full-info-role">{activeCandidate.positionApplied || 'Position not specified'}</p>
-                <p className="full-info-date">Applied on {activeCandidate.createdAt ? new Date(activeCandidate.createdAt).toLocaleDateString() : 'N/A'}</p>
-              </div>
-              <span className={`status-badge status-${(activeCandidate.status || 'Applied').toLowerCase().replace(/\s+/g, '-')}`}>
-                {activeCandidate.status || 'Applied'}
-              </span>
-            </div>
-
-            <div className="full-info-body">
-              <section className="full-info-section">
-                <h3>Personal Details</h3>
-                <div className="full-info-grid">
-                  <div className="full-info-row"><span>Full Name</span><span>{activeCandidate.firstName} {activeCandidate.lastName}</span></div>
-                  <div className="full-info-row"><span>Primary Email</span><span>{activeCandidate.email || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Alternative Email</span><span>{activeCandidate.alternativeEmail || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Primary Phone</span><span>{activeCandidate.phone || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Alternative Phone</span><span>{activeCandidate.alternativePhone || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Current Location</span><span>{activeCandidate.currentLocation || 'N/A'}</span></div>
-                </div>
-              </section>
-
-              <section className="full-info-section">
-                <h3>Position & Experience</h3>
-                <div className="full-info-grid">
-                  <div className="full-info-row"><span>Position Applied For</span><span>{activeCandidate.positionApplied || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Current Position</span><span>{activeCandidate.currentPosition || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Company Name</span><span>{activeCandidate.lastCompany || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Start Date → End Date</span><span>{activeCandidate.employmentStart || 'N/A'} → {activeCandidate.employmentEnd || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Total Experience</span><span>{activeCandidate.experienceYears ? `${activeCandidate.experienceYears} yrs` : 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Relevant Experience</span><span>{activeCandidate.relevantExp || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Is Fresher</span><span>{activeCandidate.isFresher ? 'Yes' : 'No'}</span></div>
-                  <div className="full-info-row"><span>Work Type Preference</span><span>{activeCandidate.workTypePreference || 'N/A'}</span></div>
-                </div>
-              </section>
-
-              <section className="full-info-section">
-                <h3>Location Preferences</h3>
-                <div className="full-info-grid">
-                  <div className="full-info-row"><span>Current Location</span><span>{activeCandidate.currentLocation || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Preferred Location 1</span><span>{activeCandidate.preferredLocation1 || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Preferred Location 2</span><span>{activeCandidate.preferredLocation2 || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Work Type</span><span>{activeCandidate.workTypePreference || 'N/A'}</span></div>
-                </div>
-              </section>
-
-              <section className="full-info-section">
-                <h3>Salary & Company</h3>
-                <div className="full-info-grid">
-                  <div className="full-info-row"><span>Current Salary</span><span>{activeCandidate.currentSalary || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Expected Salary</span><span>{activeCandidate.expectedSalary || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Current Company</span><span>{activeCandidate.lastCompany || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Company Duration</span><span>{activeCandidate.companyStart || 'N/A'} → {activeCandidate.companyEnd || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Total Years at Company</span><span>{activeCandidate.companyYears || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Bonus Received</span><span>{activeCandidate.bonusReceived ? 'Yes' : 'No'}</span></div>
-                </div>
-              </section>
-
-              <section className="full-info-section">
-                <h3>Education Details</h3>
-                <div className="full-info-grid">
-                  <div className="full-info-row"><span>Degree / Qualification</span><span>{activeCandidate.degree || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>University / Institute</span><span>{activeCandidate.university || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Field of Study</span><span>{activeCandidate.fieldOfStudy || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Start → End Year</span><span>{activeCandidate.educationStart || 'N/A'} → {activeCandidate.educationEnd || 'N/A'}</span></div>
-                  <div className="full-info-row"><span>Grade / CGPA</span><span>{activeCandidate.grade || 'N/A'}</span></div>
-                </div>
-                {activeCandidate.educationHistory && activeCandidate.educationHistory.length > 0 && (
-                  <div className="education-history">
-                    {activeCandidate.educationHistory.map((item, idx) => (
-                      <div key={idx} className="education-entry">
-                        <span>{item.degree || 'N/A'} — {item.institute || 'N/A'}</span>
-                        <span>{item.startYear || 'N/A'} → {item.endYear || 'N/A'}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="full-info-section">
-                <h3>Skills</h3>
-                <div className="skills-display">
-                  {activeCandidate.skills && activeCandidate.skills.length > 0 ? (
-                    activeCandidate.skills.map((skill, idx) => (
-                      <span key={idx} className="skill-badge">{skill}</span>
-                    ))
-                  ) : (
-                    <span className="detail-value">No skills listed</span>
-                  )}
-                </div>
-              </section>
-
-              <section className="full-info-section">
-                <h3>Documents</h3>
-                <div className="document-grid">
-                  {activeCandidate.resumeData ? (
-                    <div className="document-card">
-                      <div className="document-meta">
-                        <span className="document-title">Resume</span>
-                        <span className="document-name">{activeCandidate.resumeName || 'Resume'}</span>
-                      </div>
-                      <a className="document-download" href={activeCandidate.resumeData} target="_blank" rel="noreferrer">Download</a>
-                    </div>
-                  ) : (
-                    <div className="document-card document-empty">No resume available</div>
-                  )}
-                  {[activeCandidate.salarySlip1, activeCandidate.salarySlip2, activeCandidate.salarySlip3].map((file, idx) => file ? (
-                    <div key={idx} className="document-card">
-                      <div className="document-meta">
-                        <span className="document-title">Salary Slip</span>
-                        <span className="document-name">Slip {idx + 1}</span>
-                      </div>
-                      <a className="document-download" href={file} target="_blank" rel="noreferrer">Download</a>
-                    </div>
-                  ) : null)}
-                  {activeCandidate.bonusSlip && (
-                    <div className="document-card">
-                      <div className="document-meta">
-                        <span className="document-title">Bonus Slip</span>
-                        <span className="document-name">Bonus Slip</span>
-                      </div>
-                      <a className="document-download" href={activeCandidate.bonusSlip} target="_blank" rel="noreferrer">Download</a>
-                    </div>
-                  )}
-                </div>
-              </section>
-            </div>
-
-            <div className="full-info-actions">
-              <button type="button" className="action-btn action-shortlist" onClick={() => handleChangeStatus(activeCandidate.id, 'Shortlisted')}>
-                Shortlist
-              </button>
-              <button type="button" className="action-btn action-reject" onClick={() => handleChangeStatus(activeCandidate.id, 'Rejected')}>
-                Reject
-              </button>
-              <button type="button" className="action-btn action-hold" onClick={() => handleChangeStatus(activeCandidate.id, 'On Hold')}>
-                On Hold
-              </button>
-              <button
-                type="button"
-                className="action-btn action-download"
-                onClick={() => activeCandidate.resumeData && window.open(activeCandidate.resumeData, '_blank')}
-              >
-                Download Resume
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <button
-        type="button"
-        className={`chat-toggle-button ${chatOpen ? 'open' : ''}`}
-        onClick={handleToggleChat}
-        title="Resuming Buddy"
-      >
-        <span className="chat-toggle-icon">{chatOpen ? '✕' : '💬'}</span>
-        {unreadCount > 0 && !chatOpen && (
-          <span className="chat-unread-badge">{unreadCount}</span>
+        {applications.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+            No applications found yet. Candidates will appear here after submitting the form.
+          </Box>
+        ) : filteredApplications.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
+            No candidates match your filter. Try a different search term.
+          </Box>
+        ) : (
+          renderCurrentView()
         )}
-      </button>
+      </Paper>
 
-      <div className={`chat-window ${chatOpen ? 'chat-open' : ''}`}>
-        <div className="chat-header">
-          <div className="chat-header-left">
-            <div className="chat-avatar">🤖</div>
-            <div>
-              <div className="chat-title">Resuming Buddy</div>
-              <div className="chat-status">🟢 Online — Ask me anything</div>
-            </div>
-          </div>
-          <div className="chat-header-actions">
-            <button type="button" className="chat-header-button" onClick={() => setChatOpen(false)}>
-              —
-            </button>
-            <button type="button" className="chat-header-button" onClick={handleToggleChat}>
-              ✕
-            </button>
-          </div>
-        </div>
+      <Dialog open={fullInfoOpen && Boolean(activeCandidate)} onClose={closeFullInfo} maxWidth="md" fullWidth>
+        {activeCandidate && (
+          <DialogContent sx={{ p: 0 }}>
+            <Box sx={{ p: 3, background: 'linear-gradient(135deg, rgba(108,99,255,0.10), rgba(139,131,255,0.04))' }}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56, fontWeight: 700 }}>
+                  {`${activeCandidate.firstName?.[0] || ''}${activeCandidate.lastName?.[0] || ''}`.toUpperCase()}
+                </Avatar>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="h6">{activeCandidate.firstName} {activeCandidate.lastName}</Typography>
+                  <Typography variant="body2" color="text.secondary">{activeCandidate.positionApplied || 'Position not specified'}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Applied on {activeCandidate.createdAt ? new Date(activeCandidate.createdAt).toLocaleDateString() : 'N/A'}
+                  </Typography>
+                </Box>
+                <Chip color={statusColor(activeCandidate.status || 'Applied')} label={activeCandidate.status || 'Applied'} />
+                <IconButton onClick={closeFullInfo}><CloseRoundedIcon /></IconButton>
+              </Stack>
+            </Box>
 
-        <div className="chat-body">
-          {chatMessages.length === 0 ? (
-            <div className="chat-empty-state">
-              <div className="robot-illustration">🤖</div>
-              <div className="empty-text">Start a conversation!</div>
-            </div>
-          ) : (
-            <div className="chat-messages" ref={chatScrollRef}>
-              {chatMessages.map(message => (
-                <div key={message.id} className={`chat-message ${message.role === 'bot' ? 'bot-message' : 'admin-message'}`}>
-                  {message.role === 'bot' && <div className="message-author">Resuming Buddy</div>}
-                  <div className="message-bubble">
-                    {message.text.split('\n').map((line, index) => (
-                      <p key={index}>{line}</p>
-                    ))}
-                  </div>
-                  <div className="message-time">{message.timestamp}</div>
-                </div>
-              ))}
-              {isTyping && (
-                <div className="chat-message bot-message typing-indicator">
-                  <div className="message-author">Resuming Buddy</div>
-                  <div className="typing-bubble">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+            <Box sx={{ p: 3 }}>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom>Personal Details</Typography>
+                  <Grid container spacing={1.5}>
+                    {infoRow('Full Name', `${activeCandidate.firstName || ''} ${activeCandidate.lastName || ''}`)}
+                    {infoRow('Primary Email', activeCandidate.email || 'N/A')}
+                    {infoRow('Alternative Email', activeCandidate.altEmail || activeCandidate.alternativeEmail || 'N/A')}
+                    {infoRow('Primary Phone', activeCandidate.phone || 'N/A')}
+                    {infoRow('Alternative Phone', activeCandidate.altPhone || activeCandidate.alternativePhone || 'N/A')}
+                    {infoRow('Current Location', activeCandidate.currentLocation || 'N/A')}
+                  </Grid>
+                </Box>
+                <Divider />
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom>Position & Experience</Typography>
+                  <Grid container spacing={1.5}>
+                    {infoRow('Position Applied For', activeCandidate.positionApplied || 'N/A')}
+                    {infoRow('Current Position', activeCandidate.currentPosition || 'N/A')}
+                    {infoRow('Company Name', activeCandidate.companyName || activeCandidate.lastCompany || 'N/A')}
+                    {infoRow('Start → End Date', `${activeCandidate.startDate || 'N/A'} → ${activeCandidate.endDate || (activeCandidate.currentlyWorking ? 'Present' : 'N/A')}`)}
+                    {infoRow('Total Experience', activeCandidate.experienceYears ? `${activeCandidate.experienceYears} yrs` : 'N/A')}
+                    {infoRow('Relevant Experience', activeCandidate.relevantExperienceText || activeCandidate.relevantExp || 'N/A')}
+                    {infoRow('Is Fresher', activeCandidate.isFresher ? 'Yes' : 'No')}
+                    {infoRow('Work Type Preference', activeCandidate.workTypePreference || 'N/A')}
+                  </Grid>
+                </Box>
+                <Divider />
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom>Location Preferences</Typography>
+                  <Grid container spacing={1.5}>
+                    {infoRow('Current Location', activeCandidate.currentLocation || 'N/A')}
+                    {infoRow('Preferred Location 1', activeCandidate.preferredLocation1 || 'N/A')}
+                    {infoRow('Preferred Location 2', activeCandidate.preferredLocation2 || 'N/A')}
+                    {infoRow('Work Type', activeCandidate.workTypePreference || 'N/A')}
+                  </Grid>
+                </Box>
+                <Divider />
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom>Salary & Company</Typography>
+                  <Grid container spacing={1.5}>
+                    {infoRow('Last Drawn Salary', activeCandidate.lastSalary || 'N/A')}
+                    {infoRow('Expected Salary', activeCandidate.expectedSalary || 'N/A')}
+                    {infoRow('Last Company', activeCandidate.lastCompany || 'N/A')}
+                    {infoRow('Bonus Received', activeCandidate.bonusDetails ? 'Yes' : 'No')}
+                  </Grid>
+                </Box>
+                <Divider />
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom>Education Details</Typography>
+                  <Grid container spacing={1.5}>
+                    {infoRow('Degree / Qualification', activeCandidate.educationDetails?.degree || 'N/A')}
+                    {infoRow('University / Institute', activeCandidate.educationDetails?.institute || 'N/A')}
+                    {infoRow('Field of Study', activeCandidate.educationDetails?.specialization || 'N/A')}
+                    {infoRow('Start → End', `${activeCandidate.educationDetails?.startDate || 'N/A'} → ${activeCandidate.educationDetails?.endDate || 'N/A'}`)}
+                    {infoRow('Grade / CGPA', activeCandidate.educationDetails?.grade || 'N/A')}
+                  </Grid>
+                  {activeCandidate.educationHistory && activeCandidate.educationHistory.length > 0 && (
+                    <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+                      {activeCandidate.educationHistory.map((item, idx) => (
+                        <Typography variant="body2" key={idx}>
+                          {item.degree || 'N/A'} — {item.institute || 'N/A'} ({item.startDate || 'N/A'} → {item.endDate || 'N/A'})
+                        </Typography>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
+                <Divider />
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom>Skills</Typography>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {activeCandidate.skills && activeCandidate.skills.length > 0
+                      ? activeCandidate.skills.map((skill, idx) => <Chip key={idx} size="small" label={skill} />)
+                      : <Typography variant="body2">No skills listed</Typography>}
+                  </Stack>
+                </Box>
+                <Divider />
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom>Documents</Typography>
+                  {activeCandidate.resumeData ? (
+                    <Button startIcon={<DescriptionRoundedIcon />} href={activeCandidate.resumeData} target="_blank" rel="noreferrer" variant="outlined">
+                      {activeCandidate.resumeName || 'Resume'}
+                    </Button>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No resume available</Typography>
+                  )}
+                </Box>
+              </Stack>
+
+              <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap sx={{ mt: 3 }}>
+                <Button variant="contained" color="primary" onClick={() => handleChangeStatus(activeCandidate.id, 'Shortlisted')}>Shortlist</Button>
+                <Button variant="outlined" color="error" onClick={() => handleChangeStatus(activeCandidate.id, 'Rejected')}>Reject</Button>
+                <Button variant="outlined" color="warning" onClick={() => handleChangeStatus(activeCandidate.id, 'On Hold')}>On Hold</Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<DescriptionRoundedIcon />}
+                  disabled={!activeCandidate.resumeData}
+                  onClick={() => activeCandidate.resumeData && window.open(activeCandidate.resumeData, '_blank')}
+                >
+                  Download Resume
+                </Button>
+              </Stack>
+            </Box>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Fab
+        color="primary"
+        onClick={handleToggleChat}
+        sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: theme => theme.zIndex.speedDial }}
+      >
+        <Badge badgeContent={chatOpen ? 0 : unreadCount} color="error">
+          {chatOpen ? <CloseRoundedIcon /> : <ChatBubbleRoundedIcon />}
+        </Badge>
+      </Fab>
+
+      {chatOpen && (
+        <Paper
+          elevation={8}
+          sx={{
+            position: 'fixed',
+            bottom: 92,
+            right: 24,
+            width: { xs: 'calc(100vw - 48px)', sm: 360 },
+            height: 520,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            zIndex: theme => theme.zIndex.speedDial
+          }}
+        >
+          <Box sx={{ p: 2, background: 'linear-gradient(135deg, #6c63ff, #8b83ff)', color: '#fff' }}>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)' }}><SmartToyRoundedIcon /></Avatar>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="subtitle2">Resuming Buddy</Typography>
+                <Typography variant="caption">🟢 Online — Ask me anything</Typography>
+              </Box>
+              <IconButton size="small" sx={{ color: '#fff' }} onClick={handleToggleChat}><CloseRoundedIcon fontSize="small" /></IconButton>
+            </Stack>
+          </Box>
+
+          <Box ref={chatScrollRef} sx={{ flexGrow: 1, overflowY: 'auto', p: 2, bgcolor: '#f7f7fb' }}>
+            {chatMessages.length === 0 ? (
+              <Stack alignItems="center" justifyContent="center" sx={{ height: '100%', color: 'text.secondary' }}>
+                <SmartToyRoundedIcon sx={{ fontSize: 48 }} />
+                <Typography variant="body2">Start a conversation!</Typography>
+              </Stack>
+            ) : (
+              <Stack spacing={1.5}>
+                {chatMessages.map(message => (
+                  <Box key={message.id} sx={{ alignSelf: message.role === 'bot' ? 'flex-start' : 'flex-end', maxWidth: '85%' }}>
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 2,
+                        bgcolor: message.role === 'bot' ? '#fff' : 'primary.main',
+                        color: message.role === 'bot' ? 'text.primary' : '#fff',
+                        borderColor: message.role === 'bot' ? 'rgba(15,23,42,0.08)' : 'primary.main'
+                      }}
+                    >
+                      {message.text.split('\n').map((line, index) => (
+                        <Typography variant="body2" key={index} sx={{ whiteSpace: 'pre-wrap' }}>{line}</Typography>
+                      ))}
+                    </Paper>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: message.role === 'bot' ? 'left' : 'right', mt: 0.25 }}>
+                      {message.timestamp}
+                    </Typography>
+                  </Box>
+                ))}
+                {isTyping && (
+                  <Box sx={{ alignSelf: 'flex-start' }}>
+                    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                      <Typography variant="body2" color="text.secondary">typing…</Typography>
+                    </Paper>
+                  </Box>
+                )}
+              </Stack>
+            )}
+          </Box>
 
           {chatMessages.length > 0 && (
-            <div className="chat-chips">
+            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ px: 2, py: 1 }}>
               {chatSuggestions.map(chip => (
-                <button key={chip} type="button" className="chip quick-reply-chip" onClick={() => handleChipClick(chip)}>
-                  {chip}
-                </button>
+                <Chip key={chip} label={chip} size="small" clickable onClick={() => handleChipClick(chip)} />
               ))}
-            </div>
+            </Stack>
           )}
-        </div>
 
-        <form className="chat-input-bar" onSubmit={handleSendMessage}>
-          <input
-            type="text"
-            className="chat-input"
-            value={chatInputText}
-            onChange={e => setChatInputText(e.target.value)}
-            placeholder="Ask me anything about candidates..."
-          />
-          <button
-            type="submit"
-            className="chat-send-button"
-            disabled={!chatInputText.trim()}
-          >
-            ➤
-          </button>
-        </form>
-
-        <button type="button" className="chat-clear-button" onClick={handleClearChat}>
-          Clear chat
-        </button>
-      </div>
+          <Box component="form" onSubmit={handleSendMessage} sx={{ p: 1.5, borderTop: '1px solid rgba(15,23,42,0.08)' }}>
+            <Stack direction="row" spacing={1}>
+              <TextField
+                size="small"
+                fullWidth
+                value={chatInputText}
+                onChange={e => setChatInputText(e.target.value)}
+                placeholder="Ask me anything about candidates..."
+              />
+              <IconButton color="primary" type="submit" disabled={!chatInputText.trim()}>
+                <SendRoundedIcon />
+              </IconButton>
+            </Stack>
+            <Button size="small" fullWidth onClick={handleClearChat} sx={{ mt: 0.5 }}>Clear chat</Button>
+          </Box>
+        </Paper>
+      )}
     </>
   )
 }

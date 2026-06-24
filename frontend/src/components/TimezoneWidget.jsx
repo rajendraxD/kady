@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import { Chip } from '@mui/material'
+import PublicRoundedIcon from '@mui/icons-material/PublicRounded'
 
 export default function TimezoneWidget() {
   const [now, setNow] = useState(new Date())
@@ -7,7 +9,6 @@ export default function TimezoneWidget() {
   useEffect(() => {
     try {
       const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || null
-
       const offset = -new Date().getTimezoneOffset()
       const hours = Math.floor(Math.abs(offset) / 60)
       const mins = Math.abs(offset) % 60
@@ -17,14 +18,14 @@ export default function TimezoneWidget() {
       let code = null
       try {
         const parts = Intl.DateTimeFormat('en', { timeZoneName: 'short' }).formatToParts(new Date())
-        const p = parts.find(p => p.type === 'timeZoneName')
+        const p = parts.find(part => part.type === 'timeZoneName')
         if (p) code = p.value
-      } catch (e) {
+      } catch {
         // ignore
       }
 
       setMeta({ zone, utc: utcString, code, error: null })
-    } catch (err) {
+    } catch {
       setMeta({ zone: null, utc: null, code: null, error: 'Timezone unavailable' })
     }
   }, [])
@@ -35,11 +36,7 @@ export default function TimezoneWidget() {
   }, [])
 
   if (meta.error) {
-    return (
-      <div className="timezone-widget" title={meta.error}>
-        Timezone unavailable
-      </div>
-    )
+    return <Chip size="small" icon={<PublicRoundedIcon />} label="Timezone unavailable" variant="outlined" />
   }
 
   const parts = new Intl.DateTimeFormat('en', {
@@ -52,26 +49,18 @@ export default function TimezoneWidget() {
     hour12: true
   }).formatToParts(now)
 
-  const day = parts.find(p => p.type === 'day')?.value || ''
-  const month = parts.find(p => p.type === 'month')?.value || ''
-  const year = parts.find(p => p.type === 'year')?.value || ''
-  const hour = parts.find(p => p.type === 'hour')?.value || ''
-  const minute = parts.find(p => p.type === 'minute')?.value || ''
-  const second = parts.find(p => p.type === 'second')?.value || ''
-  const dayPeriod = parts.find(p => p.type === 'dayPeriod')?.value || ''
-
-  const formatted = `${day} ${month} ${year}, ${hour}:${minute}:${second} ${dayPeriod}`
-
+  const get = type => parts.find(p => p.type === type)?.value || ''
+  const formatted = `${get('day')} ${get('month')} ${get('year')}, ${get('hour')}:${get('minute')}:${get('second')} ${get('dayPeriod')}`
   const displayCode = meta.code || (meta.zone ? meta.zone.split('/').pop().replace(/_/g, ' ') : 'Local')
 
   return (
-    <div className="timezone-widget" title={meta.zone ? `Your device timezone: ${meta.zone}` : 'Your device timezone'}>
-      <div className="tz-row">
-        <span className="tz-icon" aria-hidden>🌐</span>
-        <span className="tz-main">{displayCode}</span>
-        <span className="tz-utc">{meta.utc}</span>
-        <span className="tz-time">{formatted}</span>
-      </div>
-    </div>
+    <Chip
+      size="small"
+      icon={<PublicRoundedIcon />}
+      label={`${displayCode} · ${meta.utc} · ${formatted}`}
+      variant="outlined"
+      title={meta.zone ? `Your device timezone: ${meta.zone}` : 'Your device timezone'}
+      sx={{ fontWeight: 500 }}
+    />
   )
 }
