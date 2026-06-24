@@ -1,6 +1,13 @@
 import express from 'express'
 import User from '../models/User.js'
-import { generateToken, requireAuth, blacklistToken } from '../middleware/auth.js'
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+  revokeRefreshToken,
+  requireAuth,
+  blacklistToken
+} from '../middleware/auth.js'
 import { sendOtpEmail } from '../lib/email.js'
 
 const router = express.Router()
@@ -40,8 +47,9 @@ router.post('/login', async (req, res) => {
       console.warn(`⚠️  OTP email delivery failed for ${user.email}, OTP is ${otp}`)
     }
 
-    const token = generateToken(user)
-    res.json({ token, user: user.toPublicJSON() })
+    const accessToken = generateAccessToken(user)
+    const refreshToken = generateRefreshToken(user)
+    res.json({ accessToken, refreshToken, user: user.toPublicJSON() })
   } catch (err) {
     console.error('Login error:', err)
     res.status(500).json({ error: 'Server error. Please try again.' })
@@ -80,10 +88,40 @@ router.post('/verify-otp', async (req, res) => {
   }
 })
 
-// POST /api/auth/logout — invalidate the current token
+// POST /api/auth/refresh — exchange a valid refresh token for a new access token
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body
+
+    const decoded = verifyRefreshToken(refreshToken)
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid or expired refresh token. Please login again.' })
+    }
+
+    const user = await User.findById(decoded.id).select('-password')
+    if (!user) {
+      revokeRefreshToken(refreshToken)
+      return res.status(401).json({ error: 'User not found' })
+    }
+
+    // Rotate the refresh token so a stolen one can't be reused indefinitely
+    revokeRefreshToken(refreshToken)
+    const accessToken = generateAccessToken(user)
+    const newRefreshToken = generateRefreshToken(user)
+    res.json({ accessToken, refreshToken: newRefreshToken })
+  } catch (err) {
+    console.error('Refresh error:', err)
+    res.status(500).json({ error: 'Server error. Please try again.' })
+  }
+})
+
+// POST /api/auth/logout — invalidate the current access and refresh tokens
 router.post('/logout', requireAuth, async (req, res) => {
   try {
     blacklistToken(req.token)
+    if (req.body && req.body.refreshToken) {
+      revokeRefreshToken(req.body.refreshToken)
+    }
     res.json({ message: 'Logged out successfully' })
   } catch (err) {
     console.error('Logout error:', err)

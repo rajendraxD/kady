@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../api'
 
-const TOKEN_KEY = 'kady_admin_token'
+const ACCESS_KEY = 'kady_access_token'
+const REFRESH_KEY = 'kady_refresh_token'
 const USER_KEY = 'kady_admin_user'
 
 function loadUser() {
@@ -12,11 +13,21 @@ function loadUser() {
   }
 }
 
+function persistSession({ accessToken, refreshToken, user }) {
+  if (accessToken) localStorage.setItem(ACCESS_KEY, accessToken)
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken)
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
+}
+
+function clearSession() {
+  localStorage.removeItem(ACCESS_KEY)
+  localStorage.removeItem(REFRESH_KEY)
+  localStorage.removeItem(USER_KEY)
+}
+
 export const login = createAsyncThunk('auth/login', async ({ email, password }, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/auth/login', { email: email.trim(), password })
-    localStorage.setItem(TOKEN_KEY, data.token)
-    localStorage.setItem(USER_KEY, JSON.stringify(data.user))
     return data
   } catch (err) {
     return rejectWithValue(err.response?.data?.error || 'Unable to connect to server. Please try again later.')
@@ -60,27 +71,50 @@ export const resetPassword = createAsyncThunk('auth/resetPassword', async ({ ema
   }
 })
 
-export const logout = createAsyncThunk('auth/logout', async () => {
+export const logout = createAsyncThunk('auth/logout', async (_, { getState }) => {
+  const refreshToken = getState().auth.refreshToken || localStorage.getItem(REFRESH_KEY)
   try {
-    await api.post('/auth/logout')
+    await api.post('/auth/logout', { refreshToken })
   } catch {
     // best-effort: clear locally regardless
   }
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(USER_KEY)
+  clearSession()
 })
+
+const initialAccess = localStorage.getItem(ACCESS_KEY)
+const initialRefresh = localStorage.getItem(REFRESH_KEY)
+const initialUser = loadUser()
 
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
-    token: localStorage.getItem(TOKEN_KEY) || null,
-    user: loadUser(),
+    accessToken: initialAccess,
+    refreshToken: initialRefresh,
+    user: initialUser,
+    isAuthenticated: Boolean(initialAccess && initialUser),
+    pendingAuth: null,
     status: 'idle',
     error: null
   },
   reducers: {
     clearAuthError(state) {
       state.error = null
+    },
+    // Called by the axios interceptor after a successful token refresh
+    sessionRefreshed(state, action) {
+      state.accessToken = action.payload.accessToken
+      state.refreshToken = action.payload.refreshToken
+      persistSession(action.payload)
+    },
+    // Called by the axios interceptor when refresh fails — forces a clean logout
+    forceLogout(state) {
+      state.accessToken = null
+      state.refreshToken = null
+      state.user = null
+      state.isAuthenticated = false
+      state.pendingAuth = null
+      state.status = 'idle'
+      clearSession()
     }
   },
   extraReducers: builder => {
@@ -91,20 +125,33 @@ const authSlice = createSlice({
       })
       .addCase(login.fulfilled, (state, action) => {
         state.status = 'succeeded'
-        state.token = action.payload.token
-        state.user = action.payload.user
+        // Hold the tokens until OTP is verified — not authenticated yet
+        state.pendingAuth = action.payload
       })
       .addCase(login.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload
       })
+      .addCase(verifyOtp.fulfilled, state => {
+        if (state.pendingAuth) {
+          state.accessToken = state.pendingAuth.accessToken
+          state.refreshToken = state.pendingAuth.refreshToken
+          state.user = state.pendingAuth.user
+          state.isAuthenticated = true
+          persistSession(state.pendingAuth)
+          state.pendingAuth = null
+        }
+      })
       .addCase(logout.fulfilled, state => {
-        state.token = null
+        state.accessToken = null
+        state.refreshToken = null
         state.user = null
+        state.isAuthenticated = false
+        state.pendingAuth = null
         state.status = 'idle'
       })
   }
 })
 
-export const { clearAuthError } = authSlice.actions
+export const { clearAuthError, sessionRefreshed, forceLogout } = authSlice.actions
 export default authSlice.reducer
